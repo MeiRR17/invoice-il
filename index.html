@@ -33,8 +33,15 @@
    <label class="field">פרטים נוספים <input id="customer-details" maxlength="240"></label>
    <label class="field wide">כתובת הלקוח <input id="customer-address" maxlength="300"></label>
  </div></div>
- <div class="section"><div class="section-head"><h3>פריטים ושירותים</h3><button type="button" id="add-item" class="button secondary">＋ הוסף שורה</button></div>
+ <div class="section"><div class="section-head"><h3>פריטים ושירותים</h3>
+   <div class="item-actions">
+     <button type="button" id="add-item" class="button secondary">＋ הוסף שורה</button>
+     <button type="button" id="export-items" class="button secondary">↓ ייצוא פריטים CSV</button>
+     <button type="button" id="import-items" class="button secondary">↑ ייבוא פריטים CSV</button>
+     <input id="items-file" type="file" accept=".csv,text/csv,text/plain" hidden>
+   </div></div>
    <div id="items" class="items"></div>
+   <p class="subnote">ייבוא פריטים מחליף את רשימת השורות לאחר אישור, אך אינו משנה פרטי לקוח, מע״מ או פרטי עסק. פורמט: <code>description,quantity,price</code> (עד 80 שורות).</p>
  </div>
  <div class="grid payment-fields">
    <label class="field">מע״מ (%) — להזנה ידנית <input id="vat-rate" type="number" min="0" max="100" step=".01" value="0"></label>
