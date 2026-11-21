@@ -1,4 +1,5 @@
-import { calculateDraft, formatMoney, importDraftJson, KINDS } from './src/draft.js';
+import { calculateDraft, formatMoney, importDraftJson, KINDS, parseQuantity, toAgorot } from './src/draft.js';
+import { importItemsCsv, exportItemsCsv } from './src/items-csv.js';
 const $=id=>document.getElementById(id);
 const entries=$('items');
 const preview=$('document-preview');
@@ -48,11 +49,16 @@ function addItem(values={description:'',quantity:'1',price:'0'}){
 }
 function updateLineTotal(row){
   const raw=itemFields(row),total=row.querySelector('[data-total]');
-  const qty=Number(raw.quantity),price=Number(raw.price);
-  const okay=Number.isFinite(qty)&&Number.isFinite(price)&&qty>0&&price>=0;
-  total.textContent=okay?('₪'+(Math.round(qty*price*100)/100).toLocaleString('he-IL',{
-    minimumFractionDigits:2,maximumFractionDigits:2,
-  })):'—';
+  try {
+    const qtyMilli=parseQuantity(raw.quantity);
+    if(qtyMilli===0)throw new Error('Quantity required.');
+    const unitPrice=toAgorot(raw.price);
+    const amount=Math.round(qtyMilli*unitPrice/1000);
+    if(!Number.isSafeInteger(amount))throw new RangeError('Line amount is too large.');
+    total.textContent='₪'+formatMoney(amount);
+  }catch{
+    total.textContent='—';
+  }
 }
 function invalidate(){
   lastDraft=null;
@@ -169,6 +175,33 @@ $('export').addEventListener('click',()=>{
     download(JSON.stringify(raw,null,2)+'\n','invoice-il-draft.json');
     message('נשמר קובץ טיוטה לעריכה עתידית. הקובץ עשוי להכיל מידע אישי — שמור אותו באופן מאובטח.');
   }catch(error){message(error.message,true);}
+});
+$('export-items').addEventListener('click',()=>{
+  try{
+    const items=[...entries.querySelectorAll('.item-row')].map(itemFields);
+    const csv=exportItemsCsv(items);
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement('a');
+    link.href=url;link.download='invoice-il-items-draft.csv';
+    document.body.append(link);link.click();link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    message('רשימת הפריטים נשמרה כקובץ CSV. קובץ זה עשוי להכיל מידע מסחרי — יש לשמור אותו במקום מאובטח.');
+  }catch(error){message('ייצוא הפריטים נכשל: '+error.message,true);}
+});
+$('import-items').addEventListener('click',()=>$('items-file').click());
+$('items-file').addEventListener('change',async event=>{
+  const file=event.target.files?.[0];event.target.value='';
+  if(!file)return;
+  if(file.size>100_000){message('קובץ הפריטים גדול מדי (מעל 100KB).',true);return;}
+  try{
+    const imported=importItemsCsv(await file.text());
+    if(!confirm('להחליף '+entries.children.length+' פריטים קיימים ב־'+imported.length+' פריטים מהקובץ? פרטים אחרים בטיוטה יישארו ללא שינוי.'))return;
+    entries.replaceChildren();
+    for(const item of imported)addItem(item);
+    invalidate();
+    message('נטענו '+imported.length+' פריטים. יש לעדכן תצוגה מקדימה לפני הדפסה.');
+  }catch(error){message('ייבוא הפריטים נכשל: '+error.message,true);}
 });
 $('import').addEventListener('click',()=>$('file').click());
 $('file').addEventListener('change',async event=>{
