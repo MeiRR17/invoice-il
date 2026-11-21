@@ -42,6 +42,23 @@ function wholeUnits(value,pattern,places,name) {
 export function toAgorot(value) { return wholeUnits(value,MONEY,2,'Price'); }
 export function parseQuantity(value) { return wholeUnits(value,QTY,3,'Quantity'); }
 export function parseVatRate(value) { return wholeUnits(value,RATE,2,'VAT rate'); }
+/**
+ * Exact, half-up rounding of thousandth-quantity × unit agorot.
+ * Intermediate products can exceed Number.MAX_SAFE_INTEGER although the
+ * rounded line item itself is representable. Never round that product in float.
+ */
+export function calculateLineAgorot(quantityMilli, priceAgorot) {
+  if (!Number.isSafeInteger(quantityMilli) || quantityMilli <= 0 ||
+      !Number.isSafeInteger(priceAgorot) || priceAgorot < 0) {
+    throw new RangeError('Line quantity and price must be valid non-negative integer units.');
+  }
+  const cents = (BigInt(quantityMilli) * BigInt(priceAgorot) + 500n) / 1000n;
+  if (cents > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new RangeError('Line item amount is too large.');
+  }
+  return Number(cents);
+}
+
 export function formatMoney(agorot) {
   if(!Number.isSafeInteger(agorot))throw new Error('Invalid currency value.');
   return (agorot/100).toLocaleString('en-IL',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -54,8 +71,7 @@ function entry(raw,index) {
   const quantityMilli=parseQuantity(raw.quantity);
   if(quantityMilli===0)throw new Error('Line item '+(index+1)+' quantity must be greater than zero.');
   const priceAgorot=toAgorot(raw.price);
-  const totalAgorot=Math.round(quantityMilli*priceAgorot/1000);
-  if(!Number.isSafeInteger(totalAgorot))throw new RangeError('Line item amount is too large.');
+  const totalAgorot=calculateLineAgorot(quantityMilli,priceAgorot);
   return {description:title,quantityMilli,priceAgorot,totalAgorot};
 }
 
@@ -67,12 +83,15 @@ export function calculateDraft(input) {
   if(!Array.isArray(input.items)||input.items.length<1||input.items.length>80)
     throw new Error('Include 1–80 line items.');
   const items=input.items.map(entry);
-  const subtotal=items.reduce((sum,item)=>sum+item.totalAgorot,0);
-  if(!Number.isSafeInteger(subtotal))throw new RangeError('Subtotal is too large.');
+  const subtotalExact=items.reduce((sum,item)=>sum+BigInt(item.totalAgorot),0n);
+  if(subtotalExact>BigInt(Number.MAX_SAFE_INTEGER))throw new RangeError('Subtotal is too large.');
+  const subtotal=Number(subtotalExact);
   const vatBasisPoints=parseVatRate(input.vatRate??'0');
-  const vat=Math.round(subtotal*vatBasisPoints/10000);
-  const total=subtotal+vat;
-  if(!Number.isSafeInteger(total))throw new RangeError('Document total is too large.');
+  const vatExact=(subtotalExact*BigInt(vatBasisPoints)+5000n)/10000n;
+  const totalExact=subtotalExact+vatExact;
+  if(totalExact>BigInt(Number.MAX_SAFE_INTEGER))throw new RangeError('Document total is too large.');
+  const vat=Number(vatExact);
+  const total=Number(totalExact);
   const paid=kind==='receipt'?toAgorot(input.amountPaid??'0'):0;
   if(kind==='receipt'&&paid>total)throw new Error('Amount paid cannot exceed calculated total.');
   return {
