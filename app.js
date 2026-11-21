@@ -1,0 +1,188 @@
+import { calculateDraft, formatMoney, importDraftJson, KINDS } from './src/draft.js';
+const $=id=>document.getElementById(id);
+const entries=$('items');
+const preview=$('document-preview');
+let lastDraft=null;
+
+const labelOf={invoice:'טיוטת חשבונית',receipt:'טיוטת קבלה',quote:'הצעת מחיר (טיוטה)'};
+const money=amount=>'₪'+formatMoney(amount);
+function message(text,error=false){
+  $('message').textContent=text;$('message').className='message'+(error?' error':'');
+}
+function div(cls=''){const n=document.createElement('div');n.className=cls;return n;}
+function node(tag,text,cls=''){
+  const n=document.createElement(tag);n.className=cls;n.textContent=String(text??'');return n;
+}
+function itemFields(row){
+  return Object.fromEntries(['description','quantity','price'].map(key=>[
+    key,row.querySelector('[data-field="'+key+'"]').value,
+  ]));
+}
+function rawInput(){
+  return {
+    version:1,draft:true,kind:$('kind').value,date:$('date').value,
+    reference:$('reference').value,
+    issuer:{name:$('issuer-name').value,address:$('issuer-address').value,details:$('issuer-details').value},
+    customer:{name:$('customer-name').value,address:$('customer-address').value,details:$('customer-details').value},
+    items:[...entries.querySelectorAll('.item-row')].map(itemFields),
+    vatRate:$('vat-rate').value,
+    amountPaid:$('paid').value,
+    paymentMethod:$('payment-method').value,
+    notes:$('notes').value,
+  };
+}
+function addItem(values={description:'',quantity:'1',price:'0'}){
+  if(entries.children.length>=80){message('ניתן להוסיף עד 80 שורות.',true);return;}
+  const instance=$('item-template').content.cloneNode(true);
+  const row=instance.querySelector('.item-row');
+  for(const key of ['description','quantity','price'])
+    row.querySelector('[data-field="'+key+'"]').value=values[key]??'';
+  row.querySelector('.remove-item').addEventListener('click',()=>{
+    if(entries.children.length===1){message('יש להשאיר לפחות שורה אחת.',true);return;}
+    row.remove();invalidate();
+  });
+  for(const input of row.querySelectorAll('input')) input.addEventListener('input',()=>{
+    updateLineTotal(row);invalidate();
+  });
+  entries.append(instance);updateLineTotal(row);invalidate();
+}
+function updateLineTotal(row){
+  const raw=itemFields(row),total=row.querySelector('[data-total]');
+  const qty=Number(raw.quantity),price=Number(raw.price);
+  const okay=Number.isFinite(qty)&&Number.isFinite(price)&&qty>0&&price>=0;
+  total.textContent=okay?('₪'+(Math.round(qty*price*100)/100).toLocaleString('he-IL',{
+    minimumFractionDigits:2,maximumFractionDigits:2,
+  })):'—';
+}
+function invalidate(){
+  lastDraft=null;
+  $('print').disabled=true;
+}
+function field(text,value){
+  const container=div('document-field');
+  container.append(node('strong',text),node('p',value||'—'));return container;
+}
+function renderDocument(documentData){
+  const d=documentData;
+  preview.replaceChildren();
+  const top=div('document-top');
+  const id=div('document-heading');
+  id.append(node('span','טיוטה בלבד · לא מסמך מס רשמי','draft-banner'));
+  id.append(node('h2',labelOf[d.kind]));
+  id.append(node('p','לצורכי הכנה ובדיקה בלבד — אינו מהווה חשבונית מס או קבלה שהונפקה'));
+  const details=div('document-meta');
+  details.append(field('תאריך',d.date));
+  if(d.reference)details.append(field('סימוכין פנימי',d.reference));
+  top.append(id,details);
+  preview.append(top);
+
+  const participants=div('document-participants');
+  for(const [label,obj] of [['פרטי העסק',d.issuer],['פרטי הלקוח',d.customer]]){
+    const pane=div('document-party');
+    pane.append(node('h3',label),node('strong',obj.name||'לא צוין'));
+    if(obj.address)pane.append(node('p',obj.address));
+    if(obj.details)pane.append(node('p',obj.details));
+    participants.append(pane);
+  }
+  preview.append(participants);
+
+  const table=document.createElement('table');table.className='document-table';
+  const thead=document.createElement('thead');const tr=document.createElement('tr');
+  for(const label of ['תיאור','כמות','מחיר יחידה','סכום']){
+    const th=node('th',label);th.scope='col';tr.append(th);
+  }
+  thead.append(tr);table.append(thead);
+  const tbody=document.createElement('tbody');
+  for(const item of d.items){
+    const row=document.createElement('tr');
+    const quantity=(item.quantityMilli/1000).toLocaleString('he-IL',{maximumFractionDigits:3});
+    for(const val of [item.description,quantity,money(item.priceAgorot),money(item.totalAgorot)])
+      row.append(node('td',val));
+    tbody.append(row);
+  }
+  table.append(tbody);preview.append(table);
+
+  const totals=div('document-totals');
+  totals.append(field('סכום ביניים',money(d.subtotalAgorot)));
+  totals.append(field('מע״מ (שיעור שהוזן: '+(d.vatBasisPoints/100).toFixed(2)+'%)',money(d.vatAgorot)));
+  totals.append(field('סך הכול',money(d.totalAgorot)));
+  if(d.kind==='receipt'){
+    totals.append(field('סכום ששולם',money(d.paidAgorot)));
+    totals.append(field('יתרה',money(d.remainingAgorot)));
+    if(d.paymentMethod)totals.append(field('אמצעי תשלום (לפי הצהרה)',d.paymentMethod));
+  }
+  preview.append(totals);
+  if(d.notes)preview.append(field('הערות',d.notes));
+  preview.append(node('p','טיוטה לא מחייבת • לא הונפקה באמצעות מערכת לניהול ספרים • יש לבדוק התאמה לדרישות החוק','document-disclaimer'));
+}
+function updatePreview(){
+  try{
+    const calculated=calculateDraft(rawInput());
+    lastDraft=calculated;
+    renderDocument(calculated);
+    $('print').disabled=false;
+    message('התצוגה המקדימה עודכנה. זהו מסמך טיוטה בלבד.');
+  }catch(error){
+    invalidate();message(error.message,true);
+  }
+}
+function download(content,filename){
+  const blob=new Blob([content],{type:'application/json;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function loadForm(data){
+  $('kind').value=data.kind;
+  $('date').value=data.date;
+  $('reference').value=data.reference||'';
+  for(const role of ['issuer','customer'])for(const key of ['name','address','details']){
+    $(role+'-'+key).value=data[role]?.[key]||'';
+  }
+  $('vat-rate').value=data.vatRate??'0';
+  $('paid').value=data.amountPaid??'0';
+  $('payment-method').value=data.paymentMethod??'';
+  $('notes').value=data.notes||'';
+  entries.replaceChildren();
+  for(const item of data.items)addItem(item);
+  syncKind();
+  invalidate();
+}
+function syncKind(){
+  const isReceipt=$('kind').value==='receipt';
+  for(const el of document.querySelectorAll('.receipt-only'))el.hidden=!isReceipt;
+}
+$('kind').addEventListener('change',()=>{syncKind();invalidate();});
+for(const field of document.querySelectorAll('.editor input,.editor textarea,.editor select')){
+  field.addEventListener('input',invalidate);
+}
+$('add-item').addEventListener('click',()=>addItem());
+$('update').addEventListener('click',updatePreview);
+$('print').addEventListener('click',()=>{
+  if(!lastDraft){message('יש לעדכן את התצוגה תחילה.',true);return;}
+  window.print();
+});
+$('export').addEventListener('click',()=>{
+  try{
+    const raw=rawInput();
+    calculateDraft(raw);
+    download(JSON.stringify(raw,null,2)+'\n','invoice-il-draft.json');
+    message('נשמר קובץ טיוטה לעריכה עתידית. הקובץ עשוי להכיל מידע אישי — שמור אותו באופן מאובטח.');
+  }catch(error){message(error.message,true);}
+});
+$('import').addEventListener('click',()=>$('file').click());
+$('file').addEventListener('change',async event=>{
+  const file=event.target.files?.[0];event.target.value='';
+  if(!file)return;
+  if(file.size>200_000){message('קובץ הטיוטה גדול מדי (מעל 200KB).',true);return;}
+  try{
+    const data=importDraftJson(await file.text());
+    if(!confirm('טעינת הקובץ תחליף את הפרטים בטיוטה הנוכחית. להמשיך?'))return;
+    loadForm(data);updatePreview();
+  }catch(error){message('לא ניתן לטעון את הטיוטה: '+error.message,true);}
+});
+{
+  const today=new Date(),local=new Date(today.getTime()-today.getTimezoneOffset()*60_000);
+  $('date').value=local.toISOString().slice(0,10);
+}
+addItem();syncKind();
