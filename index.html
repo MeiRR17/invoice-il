@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#102033">
+<meta name="description" content="מחולל טיוטות למסמכים כספיים בישראל. חישובים מקומיים, ייצוא JSON והדפסה ל-PDF. אינו מנפיק מסמכי מס.">
+<title>Invoice IL — עורך טיוטות מסמכים</title>
+<link rel="stylesheet" href="./styles.css"><script type="module" src="./app.js"></script>
+</head>
+<body>
+<header class="top"><a class="brand" href="./"><span class="mark">₪</span><strong>invoice<span>il</span></strong><small>עורך טיוטות מקומי</small></a><a href="https://github.com/MeiRR17/invoice-il" target="_blank" rel="noopener noreferrer">GitHub ↗</a></header>
+<main class="shell">
+<div class="eyebrow">כלי מקומי · ללא שרת · ללא חשבון משתמש</div>
+<div class="hero"><div><h1>מכינים מסמך. <em>בפשטות.</em></h1><p>בונים טיוטת חשבונית, קבלה או הצעת מחיר. מחשבים סכומים ושומרים קובץ לעריכה מאוחרת יותר — בלי להעביר מידע עסקי לשרת.</p></div><div class="warning">זהו כלי להכנת <strong>טיוטות בלבד</strong>, לא להנפקת חשבוניות מס או קבלות רשמיות. השתמש במערכת מורשית להנפקה ודיווח כחוק.</div></div>
+<div id="message" class="message" role="status" aria-live="polite"></div>
+<div class="workspace">
+<section class="panel editor">
+ <div class="heading"><span class="step">01</span><div><h2>פרטי המסמך</h2><p>הפרטים שתקליד לא נשמרים אוטומטית.</p></div></div>
+ <div class="grid">
+   <label class="field">סוג המסמך <select id="kind"><option value="invoice">טיוטת חשבונית</option><option value="receipt">טיוטת קבלה</option><option value="quote">הצעת מחיר</option></select></label>
+   <label class="field">תאריך <input id="date" type="date" required></label>
+   <label class="field wide">סימוכין פנימי <input id="reference" maxlength="60" placeholder="מספר טיוטה פנימי (אינו מספר חשבונית)"></label>
+ </div>
+ <div class="section"><h3>פרטי העסק</h3>
+ <div class="grid">
+   <label class="field">שם העסק <input id="issuer-name" maxlength="180" placeholder="שם העסק"></label>
+   <label class="field">פרטים נוספים <input id="issuer-details" maxlength="240" placeholder="פרטי קשר / זיהוי עסקי, לפי בחירתך"></label>
+   <label class="field wide">כתובת העסק <input id="issuer-address" maxlength="300"></label>
+ </div></div>
+ <div class="section"><h3>פרטי לקוח</h3>
+ <div class="grid">
+   <label class="field">שם הלקוח <input id="customer-name" maxlength="180" placeholder="שם הלקוח"></label>
+   <label class="field">פרטים נוספים <input id="customer-details" maxlength="240"></label>
+   <label class="field wide">כתובת הלקוח <input id="customer-address" maxlength="300"></label>
+ </div></div>
+ <div class="section"><div class="section-head"><h3>פריטים ושירותים</h3><button type="button" id="add-item" class="button secondary">＋ הוסף שורה</button></div>
+   <div id="items" class="items"></div>
+ </div>
+ <div class="grid payment-fields">
+   <label class="field">מע״מ (%) — להזנה ידנית <input id="vat-rate" type="number" min="0" max="100" step=".01" value="0"></label>
+   <label class="field receipt-only" hidden>סכום ששולם (₪) <input id="paid" type="number" min="0" step=".01" value="0"></label>
+   <label class="field receipt-only wide" hidden>אמצעי תשלום <input id="payment-method" maxlength="90" placeholder="לדוגמה: העברה בנקאית"></label>
+ </div>
+ <label class="field">הערות <textarea id="notes" rows="3" maxlength="1000" placeholder="תנאי הצעה, תיאור נוסף או הערות"></textarea></label>
+ <div class="editor-actions"><button type="button" id="update" class="button primary">עדכן תצוגה מקדימה</button><button type="button" id="export" class="button secondary">↓ שמור JSON</button><button type="button" id="import" class="button secondary">↑ טען JSON</button><input id="file" type="file" accept=".json,application/json" hidden></div>
+</section>
+<section class="panel preview-panel">
+ <div class="heading"><span class="step">02</span><div><h2>תצוגה לפני הדפסה</h2><p>טקסט ״טיוטה״ יופיע גם במסמך המודפס.</p></div></div>
+ <article id="document-preview" class="document">
+   <div class="document-empty"><span>▤</span><h3>כאן תופיע טיוטת המסמך</h3><p>הוסף פריט ולחץ על עדכון התצוגה המקדימה.</p></div>
+ </article>
+ <div class="preview-actions"><button type="button" id="print" class="button primary" disabled>▤ הדפס / שמור PDF</button></div>
+ <p class="subnote">ייצוא JSON מיועד לגיבוי ולעריכה. יצירת PDF משתמשת בדיאלוג ההדפסה של הדפדפן. המסמך אינו מתעד מספור רשמי או דיווח מס.</p>
+</section>
+</div>
+<p class="privacy">◈ פרטיות: הפרטים מעובדים בזיכרון הדפדפן בלבד. לא נשלחים לשרת ולא נשמרים ב־localStorage. שמור טיוטה כ־JSON לפני סגירת הדף.</p>
+</main>
+<footer><span>Invoice IL · מחולל טיוטות עצמאי</span><span>פותח בידי <a href="https://github.com/MeiRR17" target="_blank" rel="noopener noreferrer">Meir Dvir</a></span></footer>
+<template id="item-template"><div class="item-row"><label class="item-name field">תיאור <input data-field="description" maxlength="180" placeholder="שירות / מוצר" required></label><label class="field">כמות <input data-field="quantity" type="number" min=".001" step=".001" value="1"></label><label class="field">מחיר יחידה (₪) <input data-field="price" type="number" min="0" step=".01" value="0"></label><div class="item-footer"><strong data-total>₪0.00</strong><button type="button" class="remove-item" aria-label="מחק שורה">×</button></div></div></template>
+</body>
+</html>
