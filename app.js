@@ -1,4 +1,4 @@
-import { calculateDraft, formatMoney, importDraftJson, KINDS, parseQuantity, toAgorot } from './src/draft.js';
+import { calculateDraft, calculateLineAgorot, formatMoney, importDraftJson, KINDS, parseQuantity, toAgorot } from './src/draft.js';
 import { importItemsCsv, exportItemsCsv } from './src/items-csv.js';
 const $=id=>document.getElementById(id);
 const entries=$('items');
@@ -61,8 +61,7 @@ function updateLineTotal(row){
     const qtyMilli=parseQuantity(raw.quantity);
     if(qtyMilli===0)throw new Error('Quantity required.');
     const unitPrice=toAgorot(raw.price);
-    const amount=Math.round(qtyMilli*unitPrice/1000);
-    if(!Number.isSafeInteger(amount))throw new RangeError('Line amount is too large.');
+    const amount=calculateLineAgorot(qtyMilli,unitPrice);
     total.textContent='₪'+formatMoney(amount);
   }catch{
     total.textContent='—';
