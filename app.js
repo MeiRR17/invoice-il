@@ -4,6 +4,14 @@ const $=id=>document.getElementById(id);
 const entries=$('items');
 const preview=$('document-preview');
 let lastDraft=null;
+let editRevision=0;
+let importSequence=0;
+function importStillCurrent(request, revision){
+  return request===importSequence && revision===editRevision;
+}
+function importCancelled(){
+  message('הטופס השתנה בזמן קריאת הקובץ. הייבוא הישן בוטל כדי לשמור על הנתונים הנוכחיים.',true);
+}
 
 const labelOf={invoice:'טיוטת חשבונית',receipt:'טיוטת קבלה',quote:'הצעת מחיר (טיוטה)'};
 const money=amount=>'₪'+formatMoney(amount);
@@ -61,6 +69,7 @@ function updateLineTotal(row){
   }
 }
 function invalidate(){
+  editRevision++;
   lastDraft=null;
   $('print').disabled=true;
 }
@@ -193,26 +202,36 @@ $('import-items').addEventListener('click',()=>$('items-file').click());
 $('items-file').addEventListener('change',async event=>{
   const file=event.target.files?.[0];event.target.value='';
   if(!file)return;
+  const request=++importSequence;
+  const revision=editRevision;
   if(file.size>100_000){message('קובץ הפריטים גדול מדי (מעל 100KB).',true);return;}
   try{
-    const imported=importItemsCsv(await file.text());
+    const text=await file.text();
+    if(!importStillCurrent(request,revision)){if(request===importSequence)importCancelled();return;}
+    const imported=importItemsCsv(text);
     if(!confirm('להחליף '+entries.children.length+' פריטים קיימים ב־'+imported.length+' פריטים מהקובץ? פרטים אחרים בטיוטה יישארו ללא שינוי.'))return;
+    if(!importStillCurrent(request,revision))return;
     entries.replaceChildren();
     for(const item of imported)addItem(item);
     invalidate();
     message('נטענו '+imported.length+' פריטים. יש לעדכן תצוגה מקדימה לפני הדפסה.');
-  }catch(error){message('ייבוא הפריטים נכשל: '+error.message,true);}
+  }catch(error){if(request===importSequence)message('ייבוא הפריטים נכשל: '+error.message,true);}
 });
 $('import').addEventListener('click',()=>$('file').click());
 $('file').addEventListener('change',async event=>{
   const file=event.target.files?.[0];event.target.value='';
   if(!file)return;
+  const request=++importSequence;
+  const revision=editRevision;
   if(file.size>200_000){message('קובץ הטיוטה גדול מדי (מעל 200KB).',true);return;}
   try{
-    const data=importDraftJson(await file.text());
+    const text=await file.text();
+    if(!importStillCurrent(request,revision)){if(request===importSequence)importCancelled();return;}
+    const data=importDraftJson(text);
     if(!confirm('טעינת הקובץ תחליף את הפרטים בטיוטה הנוכחית. להמשיך?'))return;
+    if(!importStillCurrent(request,revision))return;
     loadForm(data);updatePreview();
-  }catch(error){message('לא ניתן לטעון את הטיוטה: '+error.message,true);}
+  }catch(error){if(request===importSequence)message('לא ניתן לטעון את הטיוטה: '+error.message,true);}
 });
 {
   const today=new Date(),local=new Date(today.getTime()-today.getTimezoneOffset()*60_000);
