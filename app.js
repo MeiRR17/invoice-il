@@ -72,6 +72,11 @@ function invalidate(){
   editRevision++;
   lastDraft=null;
   $('print').disabled=true;
+  // A visible old draft is dangerous even with the print button disabled:
+  // Ctrl/Cmd+P could otherwise print amounts from an earlier form state.
+  preview.replaceChildren(node('p',
+    'התצוגה המקדימה אינה מעודכנת. יש ללחוץ על עדכון תצוגה לפני הדפסה.',
+    'preview-outdated'));
 }
 function field(text,value){
   const container=div('document-field');
