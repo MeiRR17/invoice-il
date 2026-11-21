@@ -59,9 +59,15 @@ export function calculateLineAgorot(quantityMilli, priceAgorot) {
   return Number(cents);
 }
 
+const integerFormat = new Intl.NumberFormat('en-IL', { maximumFractionDigits: 0 });
 export function formatMoney(agorot) {
   if(!Number.isSafeInteger(agorot))throw new Error('Invalid currency value.');
-  return (agorot/100).toLocaleString('en-IL',{minimumFractionDigits:2,maximumFractionDigits:2});
+  // Never convert agorot to floating-point shekels: that can drop cents for
+  // large, otherwise valid amounts. Render quotient and remainder separately.
+  const value=BigInt(agorot);
+  const abs=value<0n?-value:value;
+  return (value<0n?'-':'')+
+    integerFormat.format(Number(abs/100n))+'.'+String(abs%100n).padStart(2,'0');
 }
 
 function entry(raw,index) {
