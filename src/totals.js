@@ -5,6 +5,8 @@
  *
  * These totals are not tax records or evidence of a completed transaction.
  */
+import { validatedLineRows } from './line-audit.js';
+
 const KINDS = new Set(['invoice', 'receipt', 'quote']);
 const amount = value => Number.isSafeInteger(value) && value >= 0;
 
@@ -26,6 +28,10 @@ export function draftTotals(calculated) {
           calculated.remainingAgorot !== calculated.totalAgorot)) {
     throw new TypeError('Expected a valid calculated financial draft.');
   }
+  // Fail closed for programmatically supplied, stale or tampered calculations.
+  // The same line-and-VAT arithmetic gate protects both CSV audit exports
+  // and this privacy-reduced JSON totals report.
+  validatedLineRows(calculated);
   return {
     format: 'invoice-il-draft-totals-v1',
     draft: true,

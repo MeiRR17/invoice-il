@@ -59,6 +59,24 @@ export function calculateLineAgorot(quantityMilli, priceAgorot) {
   return Number(cents);
 }
 
+/**
+ * Calculate the document-level VAT in integer agorot, rounding half-up.
+ * Exposed separately so privacy-reduced exports can reject stale or tampered
+ * calculated drafts without trusting supplied VAT figures.
+ */
+export function calculateVatAgorot(subtotalAgorot, vatBasisPoints) {
+  if (!Number.isSafeInteger(subtotalAgorot) || subtotalAgorot < 0 ||
+      !Number.isSafeInteger(vatBasisPoints) ||
+      vatBasisPoints < 0 || vatBasisPoints > 10000) {
+    throw new RangeError('VAT calculation requires safe non-negative agorot and a 0–10000 basis-point rate.');
+  }
+  const result = (BigInt(subtotalAgorot) * BigInt(vatBasisPoints) + 5000n) / 10000n;
+  if (result > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new RangeError('VAT amount is too large.');
+  }
+  return Number(result);
+}
+
 const integerFormat = new Intl.NumberFormat('en-IL', { maximumFractionDigits: 0 });
 export function formatMoney(agorot) {
   if(!Number.isSafeInteger(agorot))throw new Error('Invalid currency value.');
@@ -93,10 +111,9 @@ export function calculateDraft(input) {
   if(subtotalExact>BigInt(Number.MAX_SAFE_INTEGER))throw new RangeError('Subtotal is too large.');
   const subtotal=Number(subtotalExact);
   const vatBasisPoints=parseVatRate(input.vatRate??'0');
-  const vatExact=(subtotalExact*BigInt(vatBasisPoints)+5000n)/10000n;
-  const totalExact=subtotalExact+vatExact;
+  const vat=calculateVatAgorot(subtotal,vatBasisPoints);
+  const totalExact=subtotalExact+BigInt(vat);
   if(totalExact>BigInt(Number.MAX_SAFE_INTEGER))throw new RangeError('Document total is too large.');
-  const vat=Number(vatExact);
   const total=Number(totalExact);
   const paid=kind==='receipt'?toAgorot(input.amountPaid??'0'):0;
   if(kind==='receipt'&&paid>total)throw new Error('Amount paid cannot exceed calculated total.');

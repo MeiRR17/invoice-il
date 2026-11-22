@@ -6,7 +6,7 @@
  * Amounts are exact integer agorot and quantities are integer thousandths.
  * VAT is calculated at document level, never implied per line.
  */
-import { calculateLineAgorot } from './draft.js';
+import { calculateLineAgorot, calculateVatAgorot } from './draft.js';
 
 const KINDS = new Set(['invoice', 'receipt', 'quote']);
 const safe = value => Number.isSafeInteger(value) && value >= 0;
@@ -24,7 +24,7 @@ function csvCell(value, untrustedText = false) {
   return '"' + text.replaceAll('"', '""') + '"';
 }
 
-function validatedLineRows(document) {
+export function validatedLineRows(document) {
   if (!document || typeof document !== 'object' || document.version !== 1 ||
       document.draft !== true || !KINDS.has(document.kind) ||
       document.currency !== 'ILS' || !Array.isArray(document.items) ||
@@ -59,6 +59,12 @@ function validatedLineRows(document) {
   }
   if (sum !== BigInt(document.subtotalAgorot)) {
     throw new TypeError('Line totals do not reconcile to the document subtotal.');
+  }
+  // Total=subtotal+VAT was checked above; also verify that the VAT amount
+  // itself was derived from the explicitly entered rate and half-up rule.
+  if (document.vatAgorot !== calculateVatAgorot(
+    document.subtotalAgorot, document.vatBasisPoints)) {
+    throw new TypeError('Draft VAT does not reconcile with the entered rate.');
   }
   return rows;
 }
