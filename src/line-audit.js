@@ -24,7 +24,7 @@ function csvCell(value, untrustedText = false) {
   return '"' + text.replaceAll('"', '""') + '"';
 }
 
-export function calculatedLinesCsv(document) {
+function validatedLineRows(document) {
   if (!document || typeof document !== 'object' || document.version !== 1 ||
       document.draft !== true || !KINDS.has(document.kind) ||
       document.currency !== 'ILS' || !Array.isArray(document.items) ||
@@ -37,7 +37,7 @@ export function calculatedLinesCsv(document) {
     throw new TypeError('Expected a complete calculated non-official draft.');
   }
 
-  const lines = [HEADER.map(value => csvCell(value)).join(',')];
+  const rows = [];
   let sum = 0n;
   for (const [index, item] of document.items.entries()) {
     if (!item || typeof item !== 'object' ||
@@ -49,14 +49,49 @@ export function calculatedLinesCsv(document) {
       throw new TypeError('Invalid calculated line in draft.');
     }
     sum += BigInt(item.totalAgorot);
+    rows.push({
+      row: index + 1,
+      description: item.description,
+      quantityMilli: item.quantityMilli,
+      priceAgorot: item.priceAgorot,
+      totalAgorot: item.totalAgorot,
+    });
+  }
+  if (sum !== BigInt(document.subtotalAgorot)) {
+    throw new TypeError('Line totals do not reconcile to the document subtotal.');
+  }
+  return rows;
+}
+
+/** Full, sensitive line reconciliation — descriptions included. */
+export function calculatedLinesCsv(document) {
+  const rows = validatedLineRows(document);
+  const lines = [HEADER.map(value => csvCell(value)).join(',')];
+  for (const item of rows) {
     lines.push([
-      csvCell(index + 1), csvCell(item.description, true),
+      csvCell(item.row), csvCell(item.description, true),
       csvCell(item.quantityMilli), csvCell(item.priceAgorot),
       csvCell(item.totalAgorot),
     ].join(','));
   }
-  if (sum !== BigInt(document.subtotalAgorot)) {
-    throw new TypeError('Line totals do not reconcile to the document subtotal.');
+  return '\uFEFF' + lines.join('\r\n') + '\r\n';
+}
+
+/**
+ * Privacy-reduced line reconciliation. Keeps exact agorot and thousandths
+ * for auditing arithmetic while omitting product/service descriptions and
+ * all party, reference, payment and date metadata. Financial amounts can
+ * remain commercially sensitive even without descriptions.
+ */
+export function calculatedLinesNumbersCsv(document) {
+  const rows = validatedLineRows(document);
+  const lines = [[
+    'row', 'quantity_thousandths', 'unit_price_agorot', 'line_total_agorot',
+  ].map(csvCell).join(',')];
+  for (const item of rows) {
+    lines.push([
+      item.row, item.quantityMilli, item.priceAgorot, item.totalAgorot,
+    ].map(csvCell).join(','));
   }
   return '\uFEFF' + lines.join('\r\n') + '\r\n';
 }

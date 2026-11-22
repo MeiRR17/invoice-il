@@ -1,7 +1,7 @@
 import { calculateDraft, calculateLineAgorot, formatMoney, importDraftJson, KINDS, parseQuantity, toAgorot } from './src/draft.js';
 import { importItemsCsv, exportItemsCsv } from './src/items-csv.js';
 import { draftTotalsJson } from './src/totals.js';
-import { calculatedLinesCsv } from './src/line-audit.js';
+import { calculatedLinesCsv, calculatedLinesNumbersCsv } from './src/line-audit.js';
 const $=id=>document.getElementById(id);
 const entries=$('items');
 const preview=$('document-preview');
@@ -92,6 +92,7 @@ function invalidate(){
   $('print').disabled=true;
   $('export-totals').disabled=true;
   $('export-line-audit').disabled=true;
+  $('export-numeric-lines').disabled=true;
   // A visible old draft is dangerous even with the print button disabled:
   // Ctrl/Cmd+P could otherwise print amounts from an earlier form state.
   preview.replaceChildren(node('p',
@@ -163,6 +164,7 @@ function updatePreview(){
     $('print').disabled=false;
     $('export-totals').disabled=false;
     $('export-line-audit').disabled=false;
+    $('export-numeric-lines').disabled=false;
     message('התצוגה המקדימה עודכנה. זהו מסמך טיוטה בלבד.');
   }catch(error){
     invalidate();message(error.message,true);
@@ -218,6 +220,18 @@ $('export-totals').addEventListener('click',()=>{
     download(draftTotalsJson(lastDraft),'invoice-il-draft-totals.json');
     message('נשמר דוח סכומים מצומצם ללא פרטי צדדים ופריטים. הסכומים עצמם עלולים להיות רגישים; זו טיוטה בלבד.');
   }catch(error){message('ייצוא דוח הסכומים נכשל: '+error.message,true);}
+});
+$('export-numeric-lines').addEventListener('click',()=>{
+  if(!lastDraft || $('export-numeric-lines').disabled){
+    message('יש לעדכן את התצוגה תחילה.',true);return;
+  }
+  try{
+    download(calculatedLinesNumbersCsv(lastDraft),
+      'invoice-il-calculated-lines-numbers-draft.csv','text/csv;charset=utf-8');
+    message('נשמר דוח שורות מספרי ללא תיאורי פריטים או פרטי צדדים. הסכומים עצמם עשויים להיות רגישים. זה אינו מסמך רשמי.');
+  }catch(error){
+    message('ייצוא דוח השורות המספרי נכשל: '+error.message,true);
+  }
 });
 $('export-line-audit').addEventListener('click',()=>{
   if(!lastDraft){message('יש לעדכן את התצוגה תחילה.',true);return;}
