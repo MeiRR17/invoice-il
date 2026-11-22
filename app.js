@@ -1,5 +1,6 @@
 import { calculateDraft, calculateLineAgorot, formatMoney, importDraftJson, KINDS, parseQuantity, toAgorot } from './src/draft.js';
 import { importItemsCsv, exportItemsCsv } from './src/items-csv.js';
+import { draftTotalsJson } from './src/totals.js';
 const $=id=>document.getElementById(id);
 const entries=$('items');
 const preview=$('document-preview');
@@ -88,6 +89,7 @@ function invalidate(){
   editRevision++;
   lastDraft=null;
   $('print').disabled=true;
+  $('export-totals').disabled=true;
   // A visible old draft is dangerous even with the print button disabled:
   // Ctrl/Cmd+P could otherwise print amounts from an earlier form state.
   preview.replaceChildren(node('p',
@@ -157,6 +159,7 @@ function updatePreview(){
     lastDraft=calculated;
     renderDocument(calculated);
     $('print').disabled=false;
+    $('export-totals').disabled=false;
     message('התצוגה המקדימה עודכנה. זהו מסמך טיוטה בלבד.');
   }catch(error){
     invalidate();message(error.message,true);
@@ -205,6 +208,13 @@ $('export').addEventListener('click',()=>{
     download(JSON.stringify(raw,null,2)+'\n','invoice-il-draft.json');
     message('נשמר קובץ טיוטה לעריכה עתידית. הקובץ עשוי להכיל מידע אישי — שמור אותו באופן מאובטח.');
   }catch(error){message(error.message,true);}
+});
+$('export-totals').addEventListener('click',()=>{
+  if(!lastDraft){message('יש לעדכן את התצוגה תחילה.',true);return;}
+  try{
+    download(draftTotalsJson(lastDraft),'invoice-il-draft-totals.json');
+    message('נשמר דוח סכומים מצומצם ללא פרטי צדדים ופריטים. הסכומים עצמם עלולים להיות רגישים; זו טיוטה בלבד.');
+  }catch(error){message('ייצוא דוח הסכומים נכשל: '+error.message,true);}
 });
 $('export-items').addEventListener('click',()=>{
   try{
