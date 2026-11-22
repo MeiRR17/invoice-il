@@ -13,6 +13,18 @@ function importCancelled(){
   message('הטופס השתנה בזמן קריאת הקובץ. הייבוא הישן בוטל כדי לשמור על הנתונים הנוכחיים.',true);
 }
 
+// Reject malformed UTF-8 rather than silently replacing invoice information.
+async function readImportUtf8(file, maxBytes) {
+  if(file.size>maxBytes)throw new RangeError('הקובץ חורג ממגבלת הגודל המותרת.');
+  const bytes=await file.arrayBuffer();
+  if(bytes.byteLength>maxBytes)throw new RangeError('הקובץ חורג ממגבלת הגודל המותרת.');
+  try{
+    return new TextDecoder('utf-8',{fatal:true}).decode(bytes);
+  }catch{
+    throw new Error('הקובץ אינו מקודד ב־UTF-8 תקין. לא יובאו נתונים.');
+  }
+}
+
 const labelOf={invoice:'טיוטת חשבונית',receipt:'טיוטת קבלה',quote:'הצעת מחיר (טיוטה)'};
 const money=amount=>'₪'+formatMoney(amount);
 function message(text,error=false){
@@ -215,7 +227,7 @@ $('items-file').addEventListener('change',async event=>{
   const revision=editRevision;
   if(file.size>100_000){message('קובץ הפריטים גדול מדי (מעל 100KB).',true);return;}
   try{
-    const text=await file.text();
+    const text=await readImportUtf8(file,100_000);
     if(!importStillCurrent(request,revision)){if(request===importSequence)importCancelled();return;}
     const imported=importItemsCsv(text);
     if(!confirm('להחליף '+entries.children.length+' פריטים קיימים ב־'+imported.length+' פריטים מהקובץ? פרטים אחרים בטיוטה יישארו ללא שינוי.'))return;
@@ -234,7 +246,7 @@ $('file').addEventListener('change',async event=>{
   const revision=editRevision;
   if(file.size>200_000){message('קובץ הטיוטה גדול מדי (מעל 200KB).',true);return;}
   try{
-    const text=await file.text();
+    const text=await readImportUtf8(file,200_000);
     if(!importStillCurrent(request,revision)){if(request===importSequence)importCancelled();return;}
     const data=importDraftJson(text);
     if(!confirm('טעינת הקובץ תחליף את הפרטים בטיוטה הנוכחית. להמשיך?'))return;
