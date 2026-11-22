@@ -40,12 +40,15 @@ function rawInput(){
     notes:$('notes').value,
   };
 }
-function addItem(values={description:'',quantity:'1',price:'0'}){
+function addItem(values={description:'',quantity:'1',price:'0'}, afterRow=null){
   if(entries.children.length>=80){message('ניתן להוסיף עד 80 שורות.',true);return;}
   const instance=$('item-template').content.cloneNode(true);
   const row=instance.querySelector('.item-row');
   for(const key of ['description','quantity','price'])
     row.querySelector('[data-field="'+key+'"]').value=values[key]??'';
+  row.querySelector('.duplicate-item').addEventListener('click',()=>{
+    addItem(itemFields(row),row);
+  });
   row.querySelector('.remove-item').addEventListener('click',()=>{
     if(entries.children.length===1){message('יש להשאיר לפחות שורה אחת.',true);return;}
     row.remove();invalidate();
@@ -53,7 +56,9 @@ function addItem(values={description:'',quantity:'1',price:'0'}){
   for(const input of row.querySelectorAll('input')) input.addEventListener('input',()=>{
     updateLineTotal(row);invalidate();
   });
-  entries.append(instance);updateLineTotal(row);invalidate();
+  if(afterRow&&afterRow.parentElement===entries)afterRow.after(instance);
+  else entries.append(instance);
+  updateLineTotal(row);invalidate();
 }
 function updateLineTotal(row){
   const raw=itemFields(row),total=row.querySelector('[data-total]');

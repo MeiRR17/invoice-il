@@ -4,3 +4,8 @@
 
 /* Never present an out-of-date financial draft as a printable preview. */
 .preview-outdated{margin:24px auto;padding:20px;border:1px dashed #d8b984;border-radius:9px;color:#8a6423;background:#fffbef;font-weight:700;font-size:13px;line-height:1.7;text-align:center;max-width:570px}@media print{.preview-outdated{border:none;background:transparent;color:#333}}
+
+/* Keep copy/delete item controls grouped with usable touch targets. */
+.item-row-actions{display:flex;align-items:center;gap:8px}
+.duplicate-item{background:#eef4ff;border:1px solid #c9dafa;color:#31598f;border-radius:6px;padding:6px 10px;font-size:12px;font-weight:750}
+.duplicate-item:focus-visible,.remove-item:focus-visible{outline:2px solid #689cf0;outline-offset:2px}
