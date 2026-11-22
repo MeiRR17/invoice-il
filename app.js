@@ -1,6 +1,7 @@
 import { calculateDraft, calculateLineAgorot, formatMoney, importDraftJson, KINDS, parseQuantity, toAgorot } from './src/draft.js';
 import { importItemsCsv, exportItemsCsv } from './src/items-csv.js';
 import { draftTotalsJson } from './src/totals.js';
+import { calculatedLinesCsv } from './src/line-audit.js';
 const $=id=>document.getElementById(id);
 const entries=$('items');
 const preview=$('document-preview');
@@ -90,6 +91,7 @@ function invalidate(){
   lastDraft=null;
   $('print').disabled=true;
   $('export-totals').disabled=true;
+  $('export-line-audit').disabled=true;
   // A visible old draft is dangerous even with the print button disabled:
   // Ctrl/Cmd+P could otherwise print amounts from an earlier form state.
   preview.replaceChildren(node('p',
@@ -160,13 +162,14 @@ function updatePreview(){
     renderDocument(calculated);
     $('print').disabled=false;
     $('export-totals').disabled=false;
+    $('export-line-audit').disabled=false;
     message('התצוגה המקדימה עודכנה. זהו מסמך טיוטה בלבד.');
   }catch(error){
     invalidate();message(error.message,true);
   }
 }
-function download(content,filename){
-  const blob=new Blob([content],{type:'application/json;charset=utf-8'});
+function download(content,filename,mime='application/json;charset=utf-8'){
+  const blob=new Blob([content],{type:mime});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -215,6 +218,16 @@ $('export-totals').addEventListener('click',()=>{
     download(draftTotalsJson(lastDraft),'invoice-il-draft-totals.json');
     message('נשמר דוח סכומים מצומצם ללא פרטי צדדים ופריטים. הסכומים עצמם עלולים להיות רגישים; זו טיוטה בלבד.');
   }catch(error){message('ייצוא דוח הסכומים נכשל: '+error.message,true);}
+});
+$('export-line-audit').addEventListener('click',()=>{
+  if(!lastDraft){message('יש לעדכן את התצוגה תחילה.',true);return;}
+  try{
+    download(calculatedLinesCsv(lastDraft),'invoice-il-calculated-lines-draft.csv',
+      'text/csv;charset=utf-8');
+    message('יוצא פירוט חישובי שורות בטיוטה. התיאורים עלולים לכלול מידע מסחרי רגיש; אין זה מסמך חשבונאי רשמי.');
+  }catch(error){
+    message('ייצוא חישובי השורות נכשל: '+error.message,true);
+  }
 });
 $('export-items').addEventListener('click',()=>{
   try{
